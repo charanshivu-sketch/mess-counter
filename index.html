@@ -78,6 +78,13 @@ header{background:var(--ink);color:#fff;padding:10px 12px 0;position:sticky;top:
 .nm{font-size:17px;font-weight:500;line-height:1.15}
 .row.on .nm{font-weight:600}
 .id{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:1px}
+.dup{display:inline-block;background:#F6E3E1;color:var(--miss);font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 5px;border-radius:3px;margin-left:6px;letter-spacing:.03em}
+.row.warn{background:#FFFBF5}
+.row.warn.on{background:var(--served-soft)}
+.duplist{background:#fff;border:1px solid var(--paper-line);border-radius:8px;margin-bottom:12px;overflow:hidden}
+.duplist div{padding:9px 12px;border-bottom:1px solid var(--paper-line);font-size:14.5px}
+.duplist div:last-child{border-bottom:0}
+.duplist .idl{font-family:var(--mono);font-size:12px;color:var(--muted)}
 .empty{padding:44px 24px;text-align:center;color:var(--muted);font-size:16px;line-height:1.5;background:var(--enamel)}
 .empty b{display:block;font-size:19px;color:var(--ink);margin-bottom:6px;font-weight:600}
 .guestbtn{margin:12px;width:calc(100% - 24px);height:50px;border:1.5px dashed var(--muted-2);background:transparent;border-radius:8px;font-family:var(--cond);font-size:16px;font-weight:500;color:var(--muted);cursor:pointer}
@@ -168,7 +175,7 @@ header{background:var(--ink);color:#fff;padding:10px 12px 0;position:sticky;top:
    CONFIG — see README.md
    ═══════════════════════════════════════════════════════════════ */
 const SYNC_URL   = 'https://script.google.com/macros/s/AKfycbwOkF9hzyRL9RqA3rcwcvW1iOCuQjqB_GWgm5ftvNYqCZPZaCE9SKqZ0Jv7Hlx_bz8/exec';                 // Apps Script web app URL (blank = no cloud)
-const SYNC_KEY   = 'PLTC2026';  // must match SHARED_KEY in Code.gs
+const SYNC_KEY   = 'PLCT2026';  // must match SHARED_KEY in Code.gs
 const ADMIN_CODE = 'pltc2026';         // ?admin=… reveals the gear
 const ROSTER_URL = 'roster.csv';       // fallback name list in this folder
 /* ═══════════════════════════════════════════════════════════════ */
@@ -221,7 +228,8 @@ const hasSync=()=>!!SYNC_URL;
 let cur=iso(new Date()), meal='bf', filter='all', q='', undoSnap=null;
 let people=[], data={}, guests=[], carried=false, updated=0;
 let cfg={}, queue=[], isAdmin=false, rosterSrc='none', syncState='off', lastErr='';
-let copySrc=null;
+let copySrc=null, dupNames=new Set(), dupPairs=[], exactDupes=0;
+let recentCache={key:null,days:{}}, copyHidden=null;
 
 const activeOn=(p,s)=>(!p.from||p.from<=s)&&(!p.to||s<p.to);
 const cnt=k=>Object.keys(data[k]||{}).length;
@@ -287,15 +295,23 @@ async function pullDay(date){
 
 /* ── roster: cloud → repo file → saved copy ──────────────────── */
 function rowsToPeople(rows){
-  const out=[],seen=new Set();
+  const out=[],seen=new Set(),byName={};
+  exactDupes=0;
   rows.forEach(c=>{
     const id=String(c[0]||'HIRE').trim().toUpperCase(), nm=String(c[1]||'').trim();
     if(!nm)return;
     let g=String(c[2]||'').trim().toLowerCase();
     if(!GROUPS[g]||g==='guest')g=id==='HIRE'?'hire':(/^(MES|SES)/.test(id)?'staff':'worker');
     const k=pkey(id,nm);
-    if(seen.has(k))return; seen.add(k);
+    if(seen.has(k)){exactDupes++;return;}   // same ID and name twice — dropped
+    seen.add(k);
+    const n=norm(nm);
+    (byName[n]=byName[n]||[]).push(id);
     out.push({key:k,id,nm,g,from:String(c[3]||'').trim()||null,to:String(c[4]||'').trim()||null});
+  });
+  dupNames=new Set(); dupPairs=[];
+  Object.entries(byName).forEach(([n,ids])=>{
+    if(ids.length>1){dupNames.add(n);dupPairs.push({nm:n,ids});}
   });
   return out;
 }
@@ -325,6 +341,7 @@ async function loadRoster(){
 
 /* ── day ─────────────────────────────────────────────────────── */
 async function loadDay(quiet){
+  if(recentCache.key!==cur){recentCache={key:null,days:{}};copyHidden=null;}
   let rec=await store.get(dkey(cur));
   if(hasSync()&&!queue.includes(cur)){
     const cloud=await pullDay(cur);
@@ -343,30 +360,54 @@ async function saveDay(){
 }
 
 /* ── copy from a previous day, on request only ───────────────── */
+/* Fetches the last 7 days in ONE cloud call, then offers the most
+   recent day that has counts for the meal currently on screen.      */
+async function recentDays(){
+  if(recentCache.key===cur)return recentCache.days;
+  const dates=[]; for(let i=1;i<=LOOKBACK;i++)dates.push(shift(cur,-i));
+  const days={};
+  for(const d of dates){const r=await store.get(dkey(d));if(r)days[d]=r;}
+  if(hasSync()&&dates.some(d=>!days[d])){
+    try{
+      const j=await api({action:'range',from:dates[dates.length-1],to:dates[0]});
+      Object.entries(j.days||{}).forEach(([d,v])=>{
+        if(v&&v.payload&&!days[d]){
+          days[d]=Object.assign(v.payload,{updated:v.updated||0});
+          store.set(dkey(d),days[d]);
+        }
+      });
+      lastErr='';
+    }catch(e){lastErr=e.message;}
+  }
+  recentCache={key:cur,days};
+  return days;
+}
 async function offerCopy(){
   const bar=$('#copybar');
   copySrc=null;
-  if(dayTotal()>0){bar.classList.remove('on');return;}
+  if(copyHidden===cur+'|'+meal){bar.classList.remove('on');return;}
+  if(cnt(meal)>0){bar.classList.remove('on');return;}
+  const days=await recentDays();
+  const label=MEALS.find(m=>m.k===meal).short.toLowerCase();
   for(let i=1;i<=LOOKBACK;i++){
-    const s=shift(cur,-i);
-    let rec=await store.get(dkey(s));
-    if(!rec&&hasSync())rec=await pullDay(s);
-    if(rec&&rec.m&&MEALS.some(m=>Object.keys(rec.m[m.k]||{}).length)){copySrc={date:s,rec};break;}
+    const s2=shift(cur,-i), rec=days[s2];
+    if(rec&&rec.m&&Object.keys(rec.m[meal]||{}).length){copySrc={date:s2,rec};break;}
   }
   if(!copySrc){bar.classList.remove('on');return;}
-  $('#copyText').innerHTML=`Nothing counted yet. <b>Copy the counts from ${pretty(copySrc.date)}?</b>`;
-  $('#copyBtn').textContent='Copy';
+  const n=Object.keys(copySrc.rec.m[meal]).length;
+  $('#copyText').innerHTML=`No ${esc(label)} counted yet. <b>Copy ${n} from ${pretty(copySrc.date)}?</b>`;
   bar.classList.add('on');
 }
-async function doCopy(){
+async function doCopy(all){
   if(!copySrc)return;
-  MEALS.forEach(m=>{data[m.k]=Object.assign({},copySrc.rec.m[m.k]||{});});
+  if(all)MEALS.forEach(m=>{data[m.k]=Object.assign({},copySrc.rec.m[m.k]||{});});
+  else data[meal]=Object.assign({},copySrc.rec.m[meal]||{});
   carried=true; await saveDay(); render();
   $('#copybar').classList.remove('on');
   toast(`Copied from ${pretty(copySrc.date)} — check the list and correct it`);
 }
-$('#copyBtn').addEventListener('click',doCopy);
-$('#cx').addEventListener('click',()=>$('#copybar').classList.remove('on'));
+$('#copyBtn').addEventListener('click',()=>doCopy(false));
+$('#cx').addEventListener('click',()=>{copyHidden=cur+'|'+meal;$('#copybar').classList.remove('on');});
 
 /* ── render ──────────────────────────────────────────────────── */
 function render(){renderHead();renderFilters();renderList();renderRail();}
@@ -396,8 +437,10 @@ function renderList(){
   let html='',lastG=null;
   v.forEach(p=>{
     if(p.g!==lastG){html+=`<div class="grouphdr">${esc(GROUPS[p.g])}</div>`;lastG=p.g;}
-    html+=`<div class="row${sel[p.key]?' on':''}" data-key="${esc(p.key)}" role="checkbox" aria-checked="${!!sel[p.key]}" tabindex="0">
-      <div class="tick">✓</div><div class="who"><div class="nm">${esc(p.nm)}</div><div class="id">${esc(p.id)}</div></div></div>`;
+    const isDup=dupNames.has(norm(p.nm));
+    html+=`<div class="row${sel[p.key]?' on':''}${isDup?' warn':''}" data-key="${esc(p.key)}" role="checkbox" aria-checked="${!!sel[p.key]}" tabindex="0">
+      <div class="tick">✓</div><div class="who"><div class="nm">${esc(p.nm)}</div>
+      <div class="id">${esc(p.id)}${isDup?'<span class="dup">SAME NAME TWICE</span>':''}</div></div></div>`;
   });
   html+=`<button class="guestbtn" id="addGuest">+ Add a guest or visitor</button>`;
   $('#list').innerHTML=html;
@@ -427,7 +470,8 @@ $('#list').addEventListener('keydown',e=>{
   const row=e.target.closest('.row');
   if(row&&(e.key===' '||e.key==='Enter')){e.preventDefault();toggle(row.dataset.key);}
 });
-$('#meals').addEventListener('click',e=>{const b=e.target.closest('.meal');if(!b)return;meal=b.dataset.meal;undoSnap=null;render();});
+$('#meals').addEventListener('click',e=>{const b=e.target.closest('.meal');if(!b)return;
+  meal=b.dataset.meal;undoSnap=null;render();offerCopy();});
 $('#filters').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;filter=b.dataset.filter;renderFilters();renderList();});
 $('#search').addEventListener('input',e=>{q=e.target.value;$('#clearSearch').style.display=q?'block':'none';renderList();});
 $('#clearSearch').addEventListener('click',()=>{q='';$('#search').value='';$('#clearSearch').style.display='none';renderList();$('#search').focus();});
@@ -530,12 +574,12 @@ function sendPanel(){
     ${carried?`<div class="note">These counts were copied from a previous day and not yet checked. Look through the list first.</div>`:''}
     <table class="tbl">${rows}<tr class="tot"><td>Total meals</td><td>${dayTotal()}</td></tr></table>
     <button class="act wa" id="send">Send the file to the office</button>
-    ${copySrc?`<button class="act" id="cp2">Copy the counts from ${pretty(copySrc.date)}</button>`:''}
+    ${copySrc?`<button class="act" id="cp2">Copy all meals from ${pretty(copySrc.date)}</button>`:''}
     <button class="act" id="dl">Just download the file</button>
     <button class="act" data-close>Back to the list</button>`);
   $('#send').onclick=sendFile;
   $('#dl').onclick=async()=>{const f=await buildFile();if(f){download(f.name,f.csv);toast('Saved to Downloads');}};
-  if(copySrc)$('#cp2').onclick=async()=>{closeSheet();await doCopy();};
+  if(copySrc)$('#cp2').onclick=async()=>{closeSheet();await doCopy(true);};
 }
 async function sendFile(){
   const f=await buildFile();if(!f)return;
@@ -581,6 +625,8 @@ async function settings(){
       <div>Last error<span>${esc(lastErr||'none')}</span></div>
       <div>Name list from<span>${esc(rosterSrc)}</span></div>
       <div>People on the list<span>${people.length}</span></div>
+      <div>Same name twice<span>${dupPairs.length}</span></div>
+      <div>Identical rows dropped<span>${exactDupes}</span></div>
       <div>List last refreshed<span>${esc(when)}</span></div>
       <div>This device<span>${esc(cfg.dev||'—')}</span></div>
     </div>
@@ -588,6 +634,8 @@ async function settings(){
       ?`<button class="act primary" id="sTest">Test the connection</button>
         <button class="act" id="sPush">Upload everything waiting</button>`
       :`<div class="note">Cloud sync is off, so this phone keeps its own counts. Put the Apps Script address into <b>SYNC_URL</b> in index.html to turn it on.</div>`}
+    ${dupPairs.length?`<div class="note"><b>${dupPairs.length} name${dupPairs.length>1?'s appear':' appears'} more than once in the Roster tab.</b> They are flagged red in the list so nobody gets served twice. Fix them in the Sheet.</div>
+    <div class="duplist">${dupPairs.slice(0,12).map(d=>`<div>${esc(d.nm)}<div class="idl">${esc(d.ids.join(' · '))}</div></div>`).join('')}</div>`:''}
     <button class="act" id="sRoster">Refresh the name list now</button>
     <button class="act" id="sBackup">Download this month as a backup</button>
     <button class="act" data-close>Done</button>`);
