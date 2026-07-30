@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Mess Counter</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#16202B">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --ink:#16202B; --ink-2:#22303F; --line:#334455;
+  --enamel:#EDEEEA; --white:#FFF; --paper-line:#D5D8D2;
+  --served:#1F7A4C; --served-soft:#E2F0E8;
+  --miss:#B4342B; --parcel:#C67A0E; --parcel-soft:#FBF0DC;
+  --muted:#6B7A88; --muted-2:#95A3AE;
+  --cond:'Barlow Semi Condensed','Roboto Condensed','Helvetica Neue',Arial,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--ink);font-family:var(--cond);color:var(--ink);overscroll-behavior-y:contain}
+#app{max-width:560px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;background:var(--enamel)}
+
+header{background:var(--ink);color:#fff;padding:10px 12px 0;position:sticky;top:0;z-index:20}
+.brandrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.brand{font-size:13px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:var(--muted-2);display:flex;align-items:center;gap:7px}
+#gear{background:none;border:0;color:var(--parcel);font-size:16px;cursor:pointer;padding:0 2px;line-height:1;display:none}
+#gear.on{display:inline}
+#dow{font-size:12px;color:var(--muted-2);letter-spacing:.14em;text-transform:uppercase;margin-top:3px}
+.dwrap{display:flex;align-items:center;gap:4px}
+#dpick{
+  background:var(--ink-2);border:1px solid var(--line);color:#fff;border-radius:7px;height:40px;
+  font-family:var(--mono);font-size:14px;font-weight:600;padding:0 8px;color-scheme:dark;cursor:pointer
+}
+.step{background:var(--ink-2);border:1px solid var(--line);color:#fff;font-family:var(--cond);font-size:20px;line-height:1;width:34px;height:40px;border-radius:7px;cursor:pointer}
+.step:disabled{opacity:.3}
+
+.meals{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px 0 12px}
+.meal{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:7px 6px 6px;text-align:left;cursor:pointer;color:#fff;font-family:var(--cond);display:flex;flex-direction:column;gap:1px;min-height:52px;justify-content:space-between}
+.meal .ml{font-size:12.5px;line-height:1.1;color:var(--muted-2);text-transform:uppercase;font-weight:600}
+.meal .mc{font-family:var(--mono);font-size:17px;font-weight:600;line-height:1}
+.meal[aria-selected="true"]{background:var(--enamel);border-color:var(--enamel);color:var(--ink)}
+.meal[aria-selected="true"] .ml{color:var(--served)}
+.meal .mc.zero{color:var(--muted)}
+
+#banner{display:none;background:var(--parcel-soft);border-bottom:1px solid #E6D3A8;padding:10px 12px;font-size:14.5px;line-height:1.4;color:#6B4A08;align-items:flex-start;gap:10px}
+#banner.on{display:flex}
+#banner b{font-weight:700}
+#bx{flex:0 0 auto;background:none;border:0;font-size:20px;color:#8A6410;cursor:pointer;line-height:1;padding:0 2px;font-family:var(--cond)}
+
+.controls{background:var(--enamel);border-bottom:1px solid var(--paper-line);padding:10px 12px 8px}
+.searchwrap{position:relative;margin-bottom:8px}
+#search{width:100%;height:46px;border:1.5px solid var(--paper-line);border-radius:8px;background:#fff;font-family:var(--cond);font-size:18px;padding:0 40px 0 12px;color:var(--ink)}
+#search::placeholder{color:var(--muted-2)}
+#search:focus{outline:2px solid var(--served);border-color:var(--served)}
+#clearSearch{position:absolute;right:4px;top:4px;width:38px;height:38px;border:0;background:transparent;font-size:22px;color:var(--muted);cursor:pointer;display:none;font-family:var(--cond)}
+.filters{display:flex;gap:5px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+.chip{flex:0 0 auto;border:1.5px solid var(--paper-line);background:#fff;border-radius:20px;padding:7px 13px;font-family:var(--cond);font-size:15px;font-weight:500;color:var(--muted);cursor:pointer;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.bulk{display:flex;gap:6px;margin-top:8px}
+.bulk button{flex:1;height:44px;border-radius:8px;font-family:var(--cond);font-size:15.5px;font-weight:600;cursor:pointer;border:1.5px solid}
+#serveAll{background:var(--served);border-color:var(--served);color:#fff}
+#clearAll{background:#fff;border-color:var(--paper-line);color:var(--miss)}
+#undo{background:#fff;border-color:var(--paper-line);color:var(--ink);flex:0 0 76px}
+#undo:disabled{opacity:.35}
+
+#list{flex:1;padding:0 0 96px}
+.grouphdr{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:14px 12px 5px;background:var(--enamel);border-bottom:1px solid var(--paper-line)}
+.row{display:flex;align-items:center;gap:11px;min-height:64px;padding:6px 12px;border-bottom:1px solid var(--paper-line);background:var(--white);cursor:pointer;user-select:none}
+.row.on{background:var(--served-soft)}
+.tick{flex:0 0 34px;height:34px;border-radius:7px;border:2px solid var(--paper-line);background:#fff;display:grid;place-items:center;font-size:20px;line-height:1;color:transparent;font-weight:700}
+.row.on .tick{background:var(--served);border-color:var(--served);color:#fff}
+.who{flex:1;min-width:0}
+.nm{font-size:17px;font-weight:500;line-height:1.15}
+.row.on .nm{font-weight:600}
+.id{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:1px}
+.empty{padding:44px 24px;text-align:center;color:var(--muted);font-size:16px;line-height:1.5;background:var(--enamel)}
+.empty b{display:block;font-size:19px;color:var(--ink);margin-bottom:6px;font-weight:600}
+.guestbtn{margin:12px;width:calc(100% - 24px);height:50px;border:1.5px dashed var(--muted-2);background:transparent;border-radius:8px;font-family:var(--cond);font-size:16px;font-weight:500;color:var(--muted);cursor:pointer}
+
+#rail{position:fixed;bottom:0;left:0;right:0;z-index:30;background:var(--ink);color:#fff;border-top:3px solid var(--served);padding:9px 12px calc(9px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.tally{display:flex;align-items:baseline;gap:7px;flex:1;min-width:0}
+#count{font-family:var(--mono);font-size:34px;font-weight:600;line-height:.95;font-variant-numeric:tabular-nums}
+.tallymeta{font-size:12px;line-height:1.25;color:var(--muted-2);letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.tallymeta span{display:block;color:#fff;letter-spacing:.02em;text-transform:none;font-size:13px;font-weight:500}
+#finish{height:46px;padding:0 16px;border-radius:8px;border:0;background:var(--enamel);color:var(--ink);font-family:var(--cond);font-size:15.5px;font-weight:700;letter-spacing:.04em;cursor:pointer;text-transform:uppercase}
+#count.bump{animation:bump .18s ease-out}
+@keyframes bump{0%{transform:scale(1)}45%{transform:scale(1.17)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){#count.bump{animation:none}}
+
+#veil{position:fixed;inset:0;background:rgba(10,16,22,.62);z-index:40;display:none}
+#veil.open{display:block}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;max-width:560px;margin:0 auto;background:var(--enamel);border-radius:14px 14px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:none;max-height:90vh;overflow:auto}
+#sheet.open{display:block}
+#sheet h2{font-size:21px;margin:0 0 3px;font-weight:700}
+#sheet .sub{color:var(--muted);font-size:14.5px;margin:0 0 14px;line-height:1.45}
+.tbl{width:100%;border-collapse:collapse;font-size:15px;margin-bottom:14px;background:#fff;border:1px solid var(--paper-line)}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--paper-line)}
+.tbl td:last-child{text-align:right;font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums;width:64px}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr.z td{color:var(--muted-2)}
+.tbl tr.tot td{border-top:2px solid var(--ink);font-weight:700;background:var(--enamel)}
+#sheet button.act{width:100%;height:52px;border-radius:8px;font-family:var(--cond);font-size:16.5px;font-weight:600;cursor:pointer;margin-bottom:8px;border:1.5px solid var(--ink);background:#fff;color:var(--ink)}
+#sheet button.act.primary{background:var(--ink);color:#fff}
+#sheet button.act.wa{background:var(--served);border-color:var(--served);color:#fff}
+#sheet button.act.danger{border-color:var(--miss);color:var(--miss)}
+#sheet input.txt,#sheet textarea.txt,#sheet select.txt{width:100%;border:1.5px solid var(--paper-line);border-radius:8px;padding:12px;font-family:var(--cond);font-size:17px;margin-bottom:10px;background:#fff;color:var(--ink)}
+#sheet input.txt,#sheet select.txt{height:48px;padding:0 12px}
+#sheet textarea.txt{min-height:140px;font-family:var(--mono);font-size:13.5px;line-height:1.6}
+#sheet label.lab{display:block;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:4px 0 5px}
+.mgrlist{background:#fff;border:1px solid var(--paper-line);border-radius:8px;overflow:hidden;margin-bottom:12px;max-height:44vh;overflow-y:auto}
+.mgrrow{display:flex;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid var(--paper-line);cursor:pointer}
+.mgrrow:last-child{border-bottom:0}
+.mgrrow .who{flex:1}
+.mgrrow .nm{font-size:16px}
+.mgrrow.left{background:#FBF7F6}
+.mgrrow.left .nm{color:var(--muted);text-decoration:line-through}
+.tag{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:3px 7px;border-radius:4px;white-space:nowrap}
+.tag.a{background:var(--served-soft);color:var(--served)}
+.tag.l{background:#F6E3E1;color:var(--miss)}
+.note{background:#fff;border-left:3px solid var(--parcel);padding:10px 12px;font-size:14px;line-height:1.5;color:var(--ink);margin-bottom:12px}
+#toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--ink-2);color:#fff;padding:11px 18px;border-radius:22px;font-size:15px;z-index:50;opacity:0;pointer-events:none;transition:opacity .18s;max-width:88%;text-align:center;border:1px solid var(--line)}
+#toast.show{opacity:1}
+:focus-visible{outline:3px solid var(--parcel);outline-offset:1px}
+</style>
+
+<div id="app">
+  <header>
+    <div class="brandrow">
+      <div>
+        <div class="brand">Mess Counter <button id="gear" title="Manage the name list">&#9881;</button></div>
+        <div id="dow">—</div>
+      </div>
+      <div class="dwrap">
+        <button class="step" id="prevDay" aria-label="Previous day">‹</button>
+        <input type="date" id="dpick" aria-label="Choose the date">
+        <button class="step" id="nextDay" aria-label="Next day">›</button>
+      </div>
+    </div>
+    <div class="meals" id="meals" role="tablist"></div>
+  </header>
+
+  <div id="banner"><div id="btext"></div><button id="bx" aria-label="Dismiss">×</button></div>
+
+  <div class="controls">
+    <div class="searchwrap">
+      <input id="search" type="search" inputmode="search" autocomplete="off" placeholder="Type a name or ID to jump" aria-label="Search name or ID">
+      <button id="clearSearch" aria-label="Clear search">×</button>
+    </div>
+    <div class="filters" id="filters"></div>
+    <div class="bulk">
+      <button id="serveAll">Serve everyone</button>
+      <button id="clearAll">Clear all</button>
+      <button id="undo" disabled>Undo</button>
+    </div>
+  </div>
+  <div id="list"></div>
+</div>
+
+<div id="rail">
+  <div class="tally">
+    <div id="count">0</div>
+    <div class="tallymeta">served<span id="mealNow">—</span></div>
+  </div>
+  <button id="finish">Send day</button>
+</div>
+
+<div id="veil"></div>
+<div id="sheet" role="dialog" aria-modal="true"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   CONFIG — edit these two lines only
+   ═══════════════════════════════════════════════════════════════ */
+const ADMIN_CODE = 'pltc2026';     // open index.html?admin=pltc2026 to unlock the ⚙
+const ROSTER_URL = 'roster.csv';   // master name list, kept in this same GitHub folder
+/* ═══════════════════════════════════════════════════════════════ */
+
+const GROUPS={staff:'Staff',worker:'Workers',hire:'Hire manpower',guest:'Guests'};
+const GORDER=['staff','worker','hire','guest'];
+const MEALS=[
+ {k:'bf',short:'Breakfast',col:'B/F Fast'},
+ {k:'tif',short:'Lunch tiffin',col:'L/Tiffin'},
+ {k:'lpar',short:'Lunch parcel',col:'L/Parsal'},
+ {k:'din',short:'Dinner',col:'Dinner'},
+ {k:'dpar',short:'Dinner parcel',col:'D/Parsal'},
+ {k:'slun',short:'Special lunch',col:'S/Lunch'},
+ {k:'sdin',short:'Special dinner',col:'S/Dinner'}
+];
+const DOW=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const CARRY_LOOKBACK=7;
+
+/* ── storage ─────────────────────────────────────────────────── */
+const store=(()=>{
+  const mem={};
+  const ws=(typeof window!=='undefined'&&window.storage&&typeof window.storage.get==='function')?window.storage:null;
+  return{
+    async get(k){
+      if(ws){try{const r=await ws.get(k);return r?JSON.parse(r.value):null;}catch(e){return null;}}
+      try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return mem[k]??null;}
+    },
+    async set(k,v){
+      if(ws){try{await ws.set(k,JSON.stringify(v));return true;}catch(e){}}
+      try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){mem[k]=v;return false;}
+    }
+  };
+})();
+
+/* ── helpers ─────────────────────────────────────────────────── */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parseISO=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);};
+const pretty=s=>{const[y,m,d]=s.split('-');return `${d}/${m}/${y}`;};
+const shift=(s,n)=>{const d=parseISO(s);d.setDate(d.getDate()+n);return iso(d);};
+const dkey=s=>'mess:'+s;
+const RKEY='mess:roster', CKEY='mess:cfg';
+const norm=s=>String(s).trim().replace(/\s+/g,' ').toUpperCase();
+const pkey=(id,nm)=>norm(id)+'|'+norm(nm);
+
+/* ── state ───────────────────────────────────────────────────── */
+let cur=iso(new Date()), meal='bf', filter='all', q='', undoSnap=null;
+let people=[], data={}, guests=[], carried=false, cfg={};
+let isAdmin=false, mq='';
+
+const activeOn=(p,s)=>(!p.from||p.from<=s)&&(!p.to||s<p.to);
+const cnt=k=>Object.keys(data[k]||{}).length;
+const roster=()=>people.filter(p=>activeOn(p,cur))
+  .concat(guests.map(g=>({key:g.key,id:'OTHER',nm:g.nm,g:'guest'})));
+
+/* ── roster: repo file wins, cache is the offline fallback ───── */
+function parseRoster(text){
+  const out=[],seen=new Set();
+  text.split(/\r?\n/).forEach(line=>{
+    const t=line.trim();
+    if(!t||t.startsWith('#'))return;
+    const c=t.split(',').map(x=>x.trim().replace(/^"|"$/g,''));
+    if(/^id$/i.test(c[0]))return;
+    const id=(c[0]||'HIRE').toUpperCase(), nm=c[1]||'';
+    if(!nm)return;
+    let g=(c[2]||'').toLowerCase();
+    if(!GROUPS[g]||g==='guest')g=id==='HIRE'?'hire':(/^(MES|SES)/.test(id)?'staff':'worker');
+    const k=pkey(id,nm);
+    if(seen.has(k))return; seen.add(k);
+    out.push({key:k,id,nm,g,from:c[3]||null,to:c[4]||null});
+  });
+  return out;
+}
+async function loadRoster(){
+  const cached=await store.get(RKEY);
+  people=(cached&&cached.people)||[];
+  try{
+    const r=await fetch(ROSTER_URL+'?v='+Date.now(),{cache:'no-store'});
+    if(r.ok){
+      const fresh=parseRoster(await r.text());
+      if(fresh.length){
+        const changed=JSON.stringify(fresh)!==JSON.stringify(people);
+        people=fresh; await store.set(RKEY,{people,at:Date.now()});
+        if(changed&&cached)toast('Name list updated from the office');
+      }
+    }
+  }catch(e){ /* offline — the cached list stands */ }
+  if(!people.length)toast('No name list found. Ask the office to check roster.csv');
+}
+
+/* ── day load, with carry forward ────────────────────────────── */
+async function loadDay(){
+  const rec=await store.get(dkey(cur));
+  guests=(rec&&rec.guests)||[]; carried=!!(rec&&rec.carried);
+  data=(rec&&rec.m)||{};
+  MEALS.forEach(m=>{if(!data[m.k])data[m.k]={};});
+  let src=null;
+  if(!rec && cfg.carry!==false){
+    for(let i=1;i<=CARRY_LOOKBACK;i++){
+      const prev=await store.get(dkey(shift(cur,-i)));
+      if(prev&&prev.m&&MEALS.some(m=>Object.keys(prev.m[m.k]||{}).length)){
+        src=shift(cur,-i);
+        MEALS.forEach(m=>{data[m.k]=Object.assign({},prev.m[m.k]||{});});
+        carried=true; await saveDay(); break;
+      }
+    }
+  }
+  undoSnap=null; render();
+  banner(src?`<b>Copied from ${pretty(src)}.</b> Check the list and correct anyone who is not eating today.`
+             :(carried?`<b>This day was copied forward.</b> Tap “Send day” and confirm once you have checked it.`:''));
+}
+const saveDay=()=>store.set(dkey(cur),{m:data,guests,carried,confirmed:!carried});
+function banner(html){
+  const b=$('#banner');
+  if(html){$('#btext').innerHTML=html;b.classList.add('on');}else b.classList.remove('on');
+}
+$('#bx').addEventListener('click',()=>banner(''));
+
+/* ── render ──────────────────────────────────────────────────── */
+function render(){renderHead();renderFilters();renderList();renderRail();}
+function renderHead(){
+  $('#dpick').value=cur;
+  $('#dow').textContent=DOW[parseISO(cur).getDay()];
+  $('#meals').innerHTML=MEALS.map(m=>{const c=cnt(m.k);
+    return `<button class="meal" role="tab" data-meal="${m.k}" aria-selected="${m.k===meal}">
+      <span class="ml">${esc(m.short)}</span><span class="mc${c?'':' zero'}">${c||'–'}</span></button>`;}).join('');
+}
+function renderFilters(){
+  const r=roster(),counts={all:r.length};
+  GORDER.forEach(g=>counts[g]=r.filter(p=>p.g===g).length);
+  const opts=[['all','Everyone']].concat(GORDER.filter(g=>counts[g]>0).map(g=>[g,GROUPS[g]]));
+  $('#filters').innerHTML=opts.map(([g,l])=>
+    `<button class="chip" data-filter="${g}" aria-pressed="${filter===g}">${esc(l)} ${counts[g]}</button>`).join('');
+}
+function visible(){
+  const t=q.trim().toUpperCase();
+  return roster().filter(p=>{
+    if(filter!=='all'&&p.g!==filter)return false;
+    return !t||p.nm.toUpperCase().includes(t)||p.id.toUpperCase().includes(t);
+  }).sort((a,b)=>GORDER.indexOf(a.g)-GORDER.indexOf(b.g));
+}
+function renderList(){
+  const sel=data[meal]||{},v=visible();
+  if(!v.length){$('#list').innerHTML=`<div class="empty"><b>${q?'No match for “'+esc(q)+'”':'Nobody on the list'}</b>${q?'Check the spelling, or clear the search.':'Ask the office to check the name list.'}</div>`;return;}
+  let html='',lastG=null;
+  v.forEach(p=>{
+    if(p.g!==lastG){html+=`<div class="grouphdr">${esc(GROUPS[p.g])}</div>`;lastG=p.g;}
+    html+=`<div class="row${sel[p.key]?' on':''}" data-key="${esc(p.key)}" role="checkbox" aria-checked="${!!sel[p.key]}" tabindex="0">
+      <div class="tick">✓</div><div class="who"><div class="nm">${esc(p.nm)}</div><div class="id">${esc(p.id)}</div></div></div>`;
+  });
+  html+=`<button class="guestbtn" id="addGuest">+ Add a guest or visitor</button>`;
+  $('#list').innerHTML=html;
+}
+function renderRail(){
+  const el=$('#count');el.textContent=cnt(meal);
+  $('#mealNow').textContent=MEALS.find(m=>m.k===meal).short;
+  $('#undo').disabled=!undoSnap;
+  el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');
+}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2200);}
+
+/* ── counting ────────────────────────────────────────────────── */
+function touch(){ if(carried){carried=false;banner('');} }
+function toggle(key){
+  const sel=data[meal];
+  if(sel[key])delete sel[key];else sel[key]=1;
+  touch();saveDay();
+  const row=document.querySelector(`.row[data-key="${CSS.escape(key)}"]`);
+  if(row){row.classList.toggle('on',!!sel[key]);row.setAttribute('aria-checked',!!sel[key]);}
+  renderHead();renderRail();
+}
+$('#list').addEventListener('click',e=>{
+  if(e.target.closest('#addGuest'))return addGuest();
+  const row=e.target.closest('.row');if(row)toggle(row.dataset.key);
+});
+$('#list').addEventListener('keydown',e=>{
+  const row=e.target.closest('.row');
+  if(row&&(e.key===' '||e.key==='Enter')){e.preventDefault();toggle(row.dataset.key);}
+});
+$('#meals').addEventListener('click',e=>{const b=e.target.closest('.meal');if(!b)return;meal=b.dataset.meal;undoSnap=null;render();});
+$('#filters').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;filter=b.dataset.filter;renderFilters();renderList();});
+$('#search').addEventListener('input',e=>{q=e.target.value;$('#clearSearch').style.display=q?'block':'none';renderList();});
+$('#clearSearch').addEventListener('click',()=>{q='';$('#search').value='';$('#clearSearch').style.display='none';renderList();$('#search').focus();});
+$('#dpick').addEventListener('change',e=>{if(e.target.value){cur=e.target.value;loadDay();}});
+$('#prevDay').addEventListener('click',()=>{cur=shift(cur,-1);loadDay();});
+$('#nextDay').addEventListener('click',()=>{cur=shift(cur,1);loadDay();});
+$('#serveAll').addEventListener('click',()=>{
+  undoSnap=Object.assign({},data[meal]);
+  const v=visible();v.forEach(p=>data[meal][p.key]=1);
+  touch();saveDay();render();toast(`${v.length} marked served — now tap anyone who missed it`);
+});
+$('#clearAll').addEventListener('click',()=>{
+  undoSnap=Object.assign({},data[meal]);
+  visible().forEach(p=>delete data[meal][p.key]);
+  touch();saveDay();render();toast('Cleared');
+});
+$('#undo').addEventListener('click',()=>{if(!undoSnap)return;data[meal]=undoSnap;undoSnap=null;saveDay();render();toast('Undone');});
+
+function addGuest(){
+  openSheet(`<h2>Add a guest</h2>
+    <p class="sub">Saved against ${pretty(cur)} only. Sends with ID “OTHER”.</p>
+    <input class="txt" id="gname" placeholder="Guest name" autocomplete="off">
+    <button class="act primary" id="gsave">Add and mark served</button>
+    <button class="act" data-close>Cancel</button>`);
+  setTimeout(()=>$('#gname').focus(),80);
+  $('#gsave').onclick=()=>{
+    const nm=$('#gname').value.trim();if(!nm)return $('#gname').focus();
+    const key='OTHER|'+norm(nm)+'|'+Date.now().toString(36);
+    guests.push({key,nm});data[meal][key]=1;
+    touch();saveDay();closeSheet();render();toast(nm+' added');
+  };
+}
+
+/* ── the day's file ──────────────────────────────────────────── */
+const HEAD=['Date','ID','Name','Group'].concat(MEALS.map(m=>m.col)).concat(['Total','Remark']);
+function csvOf(rows){
+  return '\uFEFF'+rows.map(r=>r.map(c=>{const s=String(c??'');
+    return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',')).join('\r\n');
+}
+function dayRows(){
+  const rows=[HEAD], rem=carried?'Copied from the previous day — not yet checked':'';
+  roster().forEach(p=>{
+    const cells=MEALS.map(m=>data[m.k]&&data[m.k][p.key]?1:'');
+    const tot=cells.filter(x=>x===1).length;
+    rows.push([pretty(cur),p.id,p.nm,GROUPS[p.g],...cells,tot,rem]);
+  });
+  const totals=MEALS.map(m=>cnt(m.k));
+  rows.push([]);
+  rows.push([pretty(cur),'TOTAL','All meals','',...totals,totals.reduce((a,b)=>a+b,0),rem]);
+  return rows;
+}
+function dayText(){
+  const tot=MEALS.reduce((s,m)=>s+cnt(m.k),0);
+  return [`Mess count ${pretty(cur)} (${DOW[parseISO(cur).getDay()]})`]
+    .concat(MEALS.filter(m=>cnt(m.k)).map(m=>`${m.short}: ${cnt(m.k)}`))
+    .concat([`Total meals: ${tot}`,`Names attached in the file.`]).join('\n');
+}
+function download(name,text){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8;'}));
+  a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+
+$('#finish').addEventListener('click',dayPanel);
+function dayPanel(){
+  const rows=MEALS.map(m=>{const c=cnt(m.k);return `<tr class="${c?'':'z'}"><td>${esc(m.short)}</td><td>${c||'–'}</td></tr>`;}).join('');
+  const tot=MEALS.reduce((s,m)=>s+cnt(m.k),0);
+  openSheet(`<h2>${pretty(cur)}</h2>
+    <p class="sub">${DOW[parseISO(cur).getDay()]} — every tap is already saved. Nothing to submit.</p>
+    ${carried?`<div class="note">These numbers were copied from a previous day and not yet checked. Look through the list first, then send.</div>`:''}
+    <table class="tbl">${rows}<tr class="tot"><td>Total meals</td><td>${tot}</td></tr></table>
+    <button class="act wa" id="send">Send today's file to the office</button>
+    <button class="act" id="expMonth">Download the whole month</button>
+    <button class="act" data-close>Back to the list</button>`);
+  $('#send').onclick=sendDay;
+  $('#expMonth').onclick=exportMonth;
+}
+
+async function sendDay(){
+  const name=`Mess_${cur}.csv`, csv=csvOf(dayRows()), txt=dayText();
+  carried=false; await saveDay();
+  try{
+    const file=new File([csv],name,{type:'text/csv'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],text:txt,title:'Mess count '+pretty(cur)});
+      closeSheet();toast('Sent');return;
+    }
+  }catch(e){ if(e&&e.name==='AbortError'){return;} }
+  download(name,csv);
+  const num=(cfg.wa||'').replace(/[^0-9]/g,'');
+  if(num){
+    window.open(`https://wa.me/${num}?text=${encodeURIComponent(txt)}`,'_blank');
+    toast('File downloaded — attach it in WhatsApp');
+  }else askWA(name,csv,txt);
+}
+function askWA(name,csv,txt){
+  openSheet(`<h2>Office WhatsApp number</h2>
+    <p class="sub">Saved once on this phone. Country code, no plus sign — for Oman, 968 then the number.</p>
+    <input class="txt" id="wanum" inputmode="numeric" placeholder="96891234567" value="${esc(cfg.wa||'')}">
+    <button class="act wa" id="wasave">Save and open WhatsApp</button>
+    <button class="act" data-close>Skip — the file is in Downloads</button>`);
+  $('#wasave').onclick=async()=>{
+    const n=$('#wanum').value.replace(/[^0-9]/g,'');
+    if(n.length<8)return toast('That number looks too short');
+    cfg.wa=n;await store.set(CKEY,cfg);closeSheet();
+    window.open(`https://wa.me/${n}?text=${encodeURIComponent(txt)}`,'_blank');
+    toast('Attach the downloaded file in WhatsApp');
+  };
+}
+
+async function exportMonth(){
+  toast('Building the file…');
+  const d=parseISO(cur), y=d.getFullYear(), mo=d.getMonth();
+  const days=new Date(y,mo+1,0).getDate();
+  const rows=[HEAD];
+  for(let i=1;i<=days;i++){
+    const s=`${y}-${pad(mo+1)}-${pad(i)}`;
+    const rec=await store.get(dkey(s));if(!rec)continue;
+    const m=rec.m||{}, gs=rec.guests||[];
+    const rem=rec.carried?'Copied from the previous day — not checked':'';
+    people.filter(p=>activeOn(p,s)).concat(gs.map(g=>({key:g.key,id:'OTHER',nm:g.nm,g:'guest'})))
+      .forEach(p=>{
+        const cells=MEALS.map(x=>m[x.k]&&m[x.k][p.key]?1:'');
+        rows.push([pretty(s),p.id,p.nm,GROUPS[p.g],...cells,cells.filter(x=>x===1).length,rem]);
+      });
+  }
+  if(rows.length===1)return toast('Nothing counted in this month yet');
+  download(`Mess_Register_${y}-${pad(mo+1)}.csv`,csvOf(rows));
+  toast('Saved to Downloads');
+}
+
+/* ── admin only: manage the name list ────────────────────────── */
+function manage(){
+  if(!isAdmin)return;
+  const t=mq.trim().toUpperCase();
+  const rows=people.filter(p=>!t||p.nm.toUpperCase().includes(t)||p.id.toUpperCase().includes(t))
+    .map(p=>{
+      const left=!!p.to;
+      const tag=left?`<span class="tag l">LEFT ${esc(p.to)}</span>`
+        :(p.from?`<span class="tag a">FROM ${esc(p.from)}</span>`:`<span class="tag a">ACTIVE</span>`);
+      return `<div class="mgrrow${left?' left':''}" data-k="${esc(p.key)}">
+        <div class="who"><div class="nm">${esc(p.nm)}</div><div class="id">${esc(p.id)} · ${esc(GROUPS[p.g])}</div></div>${tag}</div>`;
+    }).join('')||`<div class="empty" style="padding:26px 16px">No match</div>`;
+  openSheet(`<h2>Name list — admin</h2>
+    <p class="sub">${people.filter(p=>!p.to).length} active of ${people.length}. Edit here, then download roster.csv and commit it to GitHub so the warden's phone picks it up.</p>
+    <input class="txt" id="mq" placeholder="Search the list" value="${esc(mq)}" autocomplete="off">
+    <div class="mgrlist">${rows}</div>
+    <button class="act primary" id="mAdd">Add one person</button>
+    <button class="act" id="mPaste">Paste a list from Excel</button>
+    <button class="act wa" id="mCsv">Download roster.csv for GitHub</button>
+    <button class="act" data-close>Done</button>`);
+  const s=$('#mq');
+  s.oninput=e=>{mq=e.target.value;const p=e.target.selectionStart;manage();const n=$('#mq');n.focus();n.setSelectionRange(p,p);};
+  $('#sheet').querySelectorAll('.mgrrow').forEach(r=>r.onclick=()=>editPerson(r.dataset.k));
+  $('#mAdd').onclick=addPerson; $('#mPaste').onclick=pasteList; $('#mCsv').onclick=rosterCsv;
+}
+const saveRoster=()=>store.set(RKEY,{people,at:Date.now()});
+function rosterCsv(){
+  const rows=[['ID','Name','Group','Joined','Left']]
+    .concat(people.map(p=>[p.id,p.nm,p.g,p.from||'',p.to||'']));
+  download('roster.csv',csvOf(rows));
+  toast('Downloaded — replace roster.csv in the GitHub repo');
+}
+function editPerson(key){
+  const p=people.find(x=>x.key===key);if(!p)return;
+  const left=!!p.to;
+  openSheet(`<h2>${esc(p.nm)}</h2>
+    <p class="sub">${esc(p.id)} · ${esc(GROUPS[p.g])}${left?` · left ${esc(p.to)}`:''}</p>
+    <label class="lab">Name</label><input class="txt" id="enm" value="${esc(p.nm)}">
+    <label class="lab">ID</label><input class="txt" id="eid" value="${esc(p.id)}">
+    <button class="act primary" id="esave">Save the correction</button>
+    ${left?`<button class="act" id="eback">Bring back onto the list</button>`
+          :`<button class="act danger" id="eleft">Mark as left from ${pretty(cur)}</button>`}
+    <button class="act danger" id="edel">Remove completely</button>
+    <button class="act" id="eback2">Back to the list</button>`);
+  $('#esave').onclick=async()=>{
+    const nm=$('#enm').value.trim(),id=($('#eid').value.trim()||p.id).toUpperCase();
+    if(!nm)return toast('Name cannot be blank');
+    p.nm=nm;p.id=id;p.key=pkey(id,nm);
+    await saveRoster();render();manage();toast('Saved');
+  };
+  if(left)$('#eback').onclick=async()=>{p.to=null;await saveRoster();render();manage();toast(p.nm+' is back');};
+  else $('#eleft').onclick=async()=>{p.to=cur;await saveRoster();render();manage();
+    toast(`${p.nm} off the list from ${pretty(cur)} — earlier days keep their meals`);};
+  $('#edel').onclick=()=>confirmDelete(p);
+  $('#eback2').onclick=manage;
+}
+function confirmDelete(p){
+  openSheet(`<h2>Remove ${esc(p.nm)} completely?</h2>
+    <p class="sub">This wipes the name from every day, including meals already counted — use it only for a duplicate or a typo.<br><br>
+    If the person has genuinely left the camp, go back and use <b>Mark as left</b>. That keeps the meals they already took, which is what the caterer invoices for.</p>
+    <button class="act danger" id="dyes">Yes, remove completely</button>
+    <button class="act primary" id="dno">No, keep them</button>`);
+  $('#dyes').onclick=async()=>{people=people.filter(x=>x.key!==p.key);await saveRoster();render();manage();toast(p.nm+' removed');};
+  $('#dno').onclick=()=>editPerson(p.key);
+}
+function addPerson(){
+  openSheet(`<h2>Add one person</h2>
+    <p class="sub">They appear from ${pretty(cur)} onward. Earlier days are untouched.</p>
+    <label class="lab">Name</label><input class="txt" id="anm" placeholder="Full name as on the payroll" autocomplete="off">
+    <label class="lab">ID</label><input class="txt" id="aid" placeholder="e.g. SEW1270 — or HIRE" autocomplete="off">
+    <label class="lab">Group</label>
+    <select class="txt" id="ag"><option value="worker">Workers</option><option value="staff">Staff</option><option value="hire">Hire manpower</option></select>
+    <button class="act primary" id="asave">Add to the list</button>
+    <button class="act" id="aback">Back</button>`);
+  setTimeout(()=>$('#anm').focus(),80);
+  $('#asave').onclick=async()=>{
+    const nm=$('#anm').value.trim();if(!nm)return $('#anm').focus();
+    const id=($('#aid').value.trim()||'HIRE').toUpperCase();
+    const k=pkey(id,nm);
+    if(people.some(p=>p.key===k))return toast('Already on the list');
+    people.push({key:k,id,nm,g:$('#ag').value,from:cur,to:null});
+    await saveRoster();render();manage();toast(nm+' added from '+pretty(cur));
+  };
+  $('#aback').onclick=manage;
+}
+function pasteList(){
+  openSheet(`<h2>Paste a list from Excel</h2>
+    <p class="sub">Copy the ID and Name columns and paste below, one person per line. Anyone already on the list is skipped, so you can paste the whole roster each month.</p>
+    <textarea class="txt" id="pl" placeholder="SEW1270&#9;RAKESH KUMAR&#10;SEW1271&#9;IMRAN HOSSAIN"></textarea>
+    <label class="lab">Add them from</label>
+    <select class="txt" id="pfrom"><option value="${cur}">${pretty(cur)} — the date showing now</option><option value="">No start date — count them from the beginning</option></select>
+    <button class="act primary" id="pdo">Add these people</button>
+    <button class="act" id="pback">Back</button>`);
+  $('#pdo').onclick=async()=>{
+    const from=$('#pfrom').value||null;
+    const have=new Set(people.map(p=>p.key));
+    let added=0,skipped=0;
+    $('#pl').value.split(/\r?\n/).forEach(line=>{
+      if(!line.trim())return;
+      const parts=line.split(/\t|;|,|\s{2,}/).map(s=>s.trim()).filter(Boolean);
+      let id,nm;
+      if(parts.length>=2&&/^[A-Za-z]{2,4}[0-9]{3,6}$/.test(parts[0])){id=parts[0].toUpperCase();nm=parts.slice(1).join(' ');}
+      else{id='HIRE';nm=parts.join(' ');}
+      if(!nm)return;
+      const k=pkey(id,nm);
+      if(have.has(k)){skipped++;return;}
+      const g=id==='HIRE'?'hire':(/^(MES|SES)/.test(id)?'staff':'worker');
+      people.push({key:k,id,nm,g,from,to:null});have.add(k);added++;
+    });
+    await saveRoster();render();manage();
+    toast(added+' added'+(skipped?', '+skipped+' already there':''));
+  };
+  $('#pback').onclick=manage;
+}
+
+/* ── sheet plumbing ──────────────────────────────────────────── */
+function openSheet(h){$('#sheet').innerHTML=h;$('#sheet').classList.add('open');$('#veil').classList.add('open');}
+function closeSheet(){$('#sheet').classList.remove('open');$('#veil').classList.remove('open');}
+$('#veil').addEventListener('click',closeSheet);
+$('#sheet').addEventListener('click',e=>{if(e.target.closest('[data-close]'))closeSheet();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet();});
+$('#gear').addEventListener('click',()=>{mq='';manage();});
+
+/* ── boot ────────────────────────────────────────────────────── */
+(async()=>{
+  isAdmin=new URLSearchParams(location.search).get('admin')===ADMIN_CODE;
+  if(isAdmin)$('#gear').classList.add('on');
+  cfg=await store.get(CKEY)||{};
+  await loadRoster();
+  await loadDay();
+})();
+</script>
